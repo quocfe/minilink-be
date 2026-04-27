@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block subject %}Chào mừng đến với MiniLink!{% endblock %}
+
+{% block content %}
+  <h2>🎉 Chào mừng bạn đến với MiniLink!</h2>
+  <p>Xin chào <strong>{{ email }}</strong>,</p>
+  <p>
+    Tài khoản của bạn đã được tạo thành công. Bạn có thể bắt đầu rút gọn link
+    và theo dõi thống kê ngay bây giờ.
+  </p>
+
+  <div class="btn-wrapper">
+    <a href="{{ base_url }}" class="btn">Bắt đầu ngay</a>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="info-box">
+    💡 <strong>Mẹo:</strong> Đăng nhập và tạo link rút gọn đầu tiên của bạn để chia sẻ với mọi người một cách chuyên nghiệp hơn.
+  </div>
+
+  <p>
+    Nếu bạn không đăng ký tài khoản này, vui lòng bỏ qua email này hoặc
+    <a href="mailto:support@minilink.io">liên hệ hỗ trợ</a>.
+  </p>
+{% endblock %}
+
