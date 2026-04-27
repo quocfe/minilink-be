@@ -72,7 +72,8 @@ jobs:
               dev@${{ secrets.VPS_TAILSCALE_IP }} << 'EOF'
               cd data/minilink/backend
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose down
+            docker image prune -af
             docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -f
+            docker compose up -d
           EOF
