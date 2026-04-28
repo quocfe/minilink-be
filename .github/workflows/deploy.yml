@@ -76,4 +76,5 @@ jobs:
             docker image prune -af
             docker compose pull
             docker compose up -d
+            docker compose exec -T minilink-api alembic upgrade head
           EOF
