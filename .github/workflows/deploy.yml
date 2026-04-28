@@ -74,5 +74,5 @@ jobs:
             docker compose down
             docker image prune -af
             docker compose pull
-            docker compose up -d
+            docker compose -f docker-compose.app.yml -f docker-compose.worker.yml up -d
           EOF
