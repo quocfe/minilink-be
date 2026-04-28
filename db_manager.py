@@ -58,6 +58,27 @@ def stamp_migration(revision: str):
         sys.exit(1)
 
 
+def downgrade_migration(revision: str):
+    """Downgrade the database to a specific revision."""
+    alembic_cfg = Config("alembic.ini")
+    try:
+        command.downgrade(alembic_cfg, revision)
+        print(f"✅ Database downgraded to '{revision}' successfully")
+    except Exception as e:
+        print(f"❌ Downgrade failed: {e}")
+        sys.exit(1)
+
+
+def current_migration():
+    """Show the current revision of the database."""
+    alembic_cfg = Config("alembic.ini")
+    try:
+        command.current(alembic_cfg)
+    except Exception as e:
+        print(f"❌ Failed to get current revision: {e}")
+        sys.exit(1)
+
+
 def main():
     """Main function."""
     if len(sys.argv) < 2:
@@ -67,6 +88,8 @@ def main():
         print("  migrate        - Run migrations")
         print("  makemigration  - Create new migration (requires message)")
         print("  stamp          - Stamp database with revision (requires revision)")
+        print("  downgrade      - Downgrade database (requires revision, e.g., -1)")
+        print("  current        - Show current database revision")
         sys.exit(1)
 
     command_arg = sys.argv[1]
@@ -89,6 +112,14 @@ def main():
             sys.exit(1)
         revision = sys.argv[2]
         stamp_migration(revision)
+    elif command_arg == "downgrade":
+        if len(sys.argv) < 3:
+            print("Please provide a revision (e.g., -1 or a specific hash)")
+            sys.exit(1)
+        revision = sys.argv[2]
+        downgrade_migration(revision)
+    elif command_arg == "current":
+        current_migration()
     else:
         print(f"Unknown command: {command_arg}")
         sys.exit(1)
