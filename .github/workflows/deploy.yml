@@ -79,5 +79,5 @@ jobs:
             docker compose up -d &&
             echo "Sleep 5s..."
             sleep 5 &&
-            docker compose exec -T minilink-api alembic upgrade head
+            docker exec -t minilink-api alembic upgrade head
           EOF
