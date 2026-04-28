@@ -79,5 +79,6 @@ jobs:
             docker compose up -d &&
             echo "Sleep 5s..."
             sleep 5 &&
-            docker exec -t minilink-api alembic upgrade head
+            echo "Running migrations..."
+            docker exec -t minilink-api python db_manager.py migrate
           EOF
