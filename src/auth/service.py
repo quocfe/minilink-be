@@ -86,16 +86,7 @@ class UserService:
                 return existing
             raise
 
-    @staticmethod
-    async def update_user_tokens(
-        db: AsyncSession, user_id: UUID, access_token: str, refresh_token: str
-    ) -> None:
-        """Store the latest issued access and refresh tokens on the user record."""
-        user = await UserService.get_user_by_id(db, user_id)
-        if user:
-            user.access_token = access_token
-            user.refresh_token = refresh_token
-            await db.commit()
+
 
 
 class BlacklistService:

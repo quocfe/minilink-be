@@ -31,10 +31,7 @@ async def _issue_tokens(user_id: str, db: AsyncSession) -> TokenResponse:
         "1",
         expire=settings.refresh_token_expire_minutes * 60,
     )
-    # Persist latest tokens on the user record
-    await UserService.update_user_tokens(
-        db, UUID(user_id), access_token, refresh_token
-    )
+
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
