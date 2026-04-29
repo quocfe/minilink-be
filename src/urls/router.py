@@ -93,7 +93,7 @@ async def get_my_urls(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user_id: UUID = Depends(get_current_user_id)
+    current_user_id: Optional[UUID] = Depends(get_optional_current_user_id)
 ):
     """Get all URLs for the current user."""
     print(f"skip: {skip}, limit: {limit}, current_user_id: {current_user_id}")
