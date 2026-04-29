@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
 from fastapi.concurrency import run_in_threadpool
 import jwt

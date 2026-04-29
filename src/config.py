@@ -31,13 +31,12 @@ class Settings(BaseSettings):
     # CORS settings
     # Comma-separated list of allowed origins, e.g. "http://localhost:5173,https://app.example.com"
     cors_origins: str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,https://minilink.nguyenphuquoc.io.vn,https://api-minilink.nguyenphuquoc.io.vn")
-    print(f"CORS_ORIGINS: {os.getenv('CORS_ORIGINS')}")
     # Cookie settings
     # Secure=True bắt buộc HTTPS — tự động bật khi debug=False (production).
     # Override bằng env var COOKIE_SECURE=true|false nếu cần.
     cookie_secure: bool = os.getenv("COOKIE_SECURE", "false" if os.getenv("DEBUG", "false").lower() == "true" else "true").lower() == "true"
     cookie_samesite: str = os.getenv("COOKIE_SAMESITE", "lax")  # "lax" | "strict" | "none"
-    cookie_domain: Optional[str] = os.getenv("COOKIE_DOMAIN", None)
+    cookie_domain: str = os.getenv("COOKIE_DOMAIN", "http://localhost:8000")
 
     # URL settings
     base_url: str = os.getenv("BASE_URL", "http://localhost:8000")
