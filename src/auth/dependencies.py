@@ -32,7 +32,8 @@ async def get_optional_current_user_id(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> Optional[UUID]:
-    """Return authenticated user id from HttpOnly cookie or Bearer token, otherwise None for guest usage."""
+    # Log để debug
+    print(f"[Auth Debug] Cookie 'access_token' received: {access_token is not None}")
     token = _extract_token(access_token, credentials)
     if not token:
         return None

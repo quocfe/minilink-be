@@ -5,6 +5,9 @@ from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 from aiokafka.errors import TopicAlreadyExistsError
 from src.config import settings
+from src.logger import get_logger
+
+logger = get_logger("kafka_client")
 
 # Retry configuration
 _RETRY_ATTEMPTS = 10
@@ -27,14 +30,14 @@ class KafkaProducer:
             )
             try:
                 await self._producer.start()
-                print(f"[KafkaProducer] Connected to Kafka (attempt {attempt})")
+                logger.info(f"Connected to Kafka (attempt {attempt})")
                 return
             except Exception as e:
                 await self._producer.stop()
                 self._producer = None
                 delay = min(_RETRY_BASE_DELAY * (2 ** (attempt - 1)), _RETRY_MAX_DELAY)
-                print(
-                    f"[KafkaProducer] Unable to connect to Kafka "
+                logger.warning(
+                    f"Unable to connect to Kafka "
                     f"(attempt {attempt}/{_RETRY_ATTEMPTS}): {e}. "
                     f"Retrying in {delay:.1f}s…"
                 )
@@ -54,7 +57,7 @@ class KafkaProducer:
         try:
             await self._producer.send(topic=topic, value=message, key=key)
         except Exception as e:
-            print(f"[KafkaProducer] Error sending message to {topic}: {e}")
+            logger.error(f"Error sending message to {topic}: {e}")
 
 
 class KafkaConsumerClient:
@@ -76,14 +79,14 @@ class KafkaConsumerClient:
             )
             try:
                 await self._consumer.start()
-                print(f"[KafkaConsumer] Connected to Kafka (attempt {attempt})")
+                logger.info(f"Connected to Kafka (attempt {attempt})")
                 return
             except Exception as e:
                 await self._consumer.stop()
                 self._consumer = None
                 delay = min(_RETRY_BASE_DELAY * (2 ** (attempt - 1)), _RETRY_MAX_DELAY)
-                print(
-                    f"[KafkaConsumer] Unable to connect to Kafka "
+                logger.warning(
+                    f"Unable to connect to Kafka "
                     f"(attempt {attempt}/{_RETRY_ATTEMPTS}): {e}. "
                     f"Retrying in {delay:.1f}s…"
                 )
@@ -105,7 +108,7 @@ class KafkaConsumerClient:
                 try:
                     await message_handler(msg.value)
                 except Exception as e:
-                    print(f"[KafkaConsumer] Error processing message: {e}")
+                    logger.error(f"Error processing message: {e}")
         finally:
             await self.stop()
 
@@ -124,11 +127,11 @@ async def create_topics():
         ]
         try:
             await admin.create_topics(topics)
-            print(f"[Kafka] Topic '{settings.kafka_click_topic}' created")
+            logger.info(f"Topic '{settings.kafka_click_topic}' created")
         except TopicAlreadyExistsError:
-            print(f"[Kafka] Topic '{settings.kafka_click_topic}' already exists")
+            logger.info(f"Topic '{settings.kafka_click_topic}' already exists")
         except Exception as e:
-            print(f"[Kafka] Failed to create topics: {e}")
+            logger.error(f"Failed to create topics: {e}")
     finally:
         await admin.close()
 

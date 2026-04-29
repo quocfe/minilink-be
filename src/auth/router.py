@@ -14,6 +14,9 @@ from src.redis.client import redis_client
 from src.auth.schemas import GoogleAuthRequest, LoginRequest, MessageResponse, UserResponse, UserCreate, TokenResponse, RefreshTokenRequest, ForgotPasswordRequest, ResetPasswordRequest, VerifyOtpRequest
 from src.auth.service import UserService, BlacklistService, VerificationCodeService
 from src.email.service import EmailService
+from src.logger import get_logger
+
+logger = get_logger("auth_router")
 
 
 router = APIRouter(prefix="/auth")
@@ -34,6 +37,9 @@ async def _issue_tokens(user_id: str, response: Response) -> TokenResponse:
         "1",
         expire=settings.refresh_token_expire_minutes * 60,
     )
+
+    # Debug log (xem trong log của backend)
+    logger.info(f"[Cookie Debug] Setting cookies: domain={settings.cookie_domain}, secure={settings.cookie_secure}, samesite={settings.cookie_samesite}")
 
     # Set access token cookie
     response.set_cookie(
@@ -91,7 +97,7 @@ async def google_login(
             settings.google_client_id,
         )
     except ValueError as exc:
-        print(f"[Google Login] Credential verification failed: {exc}")
+        logger.error(f"Credential verification failed: {exc}")
         raise HTTPException(status_code=401, detail="Invalid Google credential") from exc
 
     email = google_payload.get("email")
@@ -235,7 +241,7 @@ async def create_user(
         try:
             await EmailService.send_welcome_email(user.email)
         except Exception as mail_exc:
-            print(f"[Register] Failed to send welcome email: {mail_exc}")
+            logger.error(f"Failed to send welcome email: {mail_exc}")
         return UserResponse(
             id=user.id,
             email=user.email,

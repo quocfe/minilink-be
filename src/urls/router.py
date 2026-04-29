@@ -21,6 +21,9 @@ from src.redis.client import redis_client
 from src.kafka.client import kafka_producer
 from src.urls.dependencies import shorten_rate_limit, redirect_rate_limit
 from src.auth.dependencies import get_optional_current_user_id, get_current_user_id
+from src.logger import get_logger
+
+logger = get_logger("urls_router")
 
 router = APIRouter()
 
@@ -40,9 +43,9 @@ async def _produce_click_event(url_id, short_code: str, request: Request):
             },
             key=str(url_id),
         )
-        print(f"[KafkaProducer] Click event sent for URL ID: {url_id}")
+        logger.info(f"Click event sent for URL ID: {url_id}")
     except Exception as e:
-        print(f"[KafkaProducer] Failed to send click event: {e}")
+        logger.error(f"Failed to send click event: {e}")
 
 
 @router.post("/shorten", response_model=URLResponse)
@@ -54,12 +57,12 @@ async def create_short_url(
 ):
     """Create a new shortened URL."""
     try:
-        print(f"[URLCreate] current_user_id: {current_user_id}")
+        logger.info(f"current_user_id: {current_user_id}")
         url = await URLService.create_url(db, url_data, current_user_id)
         return URLResponse(
             id=url.id,
             short_code=url.short_code,
-            short_url=f"{settings.base_url}/{url.short_code}",
+            short_url=f"{settings.frontend_base_url}/{url.short_code}",
             original_url=url.original_url,
             expires_at=url.expires_at,
             is_active=url.is_active,
@@ -67,10 +70,10 @@ async def create_short_url(
             created_at=url.created_at
         )
     except ValueError as e:
-        print(f"[URLCreate] Failed to create shortened URL: {e}")
+        logger.error(f"Failed to create shortened URL: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"[URLCreate] Unexpected error: {e}")
+        logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create short URL")
 
 
@@ -96,7 +99,7 @@ async def get_my_urls(
     current_user_id: Optional[UUID] = Depends(get_optional_current_user_id)
 ):
     """Get all URLs for the current user."""
-    print(f"skip: {skip}, limit: {limit}, current_user_id: {current_user_id}")
+    logger.info(f"skip: {skip}, limit: {limit}, current_user_id: {current_user_id}")
     urls = await URLService.get_user_urls(db, current_user_id, skip, limit)
     click_events = await URLService.get_user_click_events_summary(db, current_user_id)
 
@@ -105,7 +108,7 @@ async def get_my_urls(
             URLResponse(
                 id=url.id,
                 short_code=url.short_code,
-                short_url=f"{settings.base_url}/{url.short_code}",
+                short_url=f"{settings.frontend_base_url}/{url.short_code}",
                 original_url=url.original_url,
                 expires_at=url.expires_at,
                 is_active=url.is_active,
@@ -125,7 +128,7 @@ async def redirect_to_original(
     _: None = Depends(redirect_rate_limit)
 ):
     """Redirect to the original URL and record click analytics."""
-    print(f"[Redirect] Attempting to resolve short code '{short_code}' from cache")
+    logger.info(f"Attempting to resolve short code '{short_code}' from cache")
 
     cached_data = await URLService.get_original_url_from_cache(short_code)
 
@@ -152,7 +155,7 @@ async def redirect_to_original(
         )
 
     # Fire-and-forget: produce click event to Kafka without blocking the redirect
-    print(f"[Redirect] URL ID: {url_id}, Short Code: {short_code} | Producing click event to Kafka")
+    logger.info(f"URL ID: {url_id}, Short Code: {short_code} | Producing click event to Kafka")
     asyncio.create_task(_produce_click_event(
         url_id=url_id,
         short_code=short_code,
@@ -175,7 +178,7 @@ async def get_url_info(
     return URLResponse(
         id=url.id,
         short_code=url.short_code,
-        short_url=f"{settings.base_url}/{url.short_code}",
+        short_url=f"{settings.frontend_base_url}/{url.short_code}",
         original_url=url.original_url,
         expires_at=url.expires_at,
         is_active=url.is_active,
@@ -199,7 +202,7 @@ async def update_url(
     return URLResponse(
         id=updated_url.id,
         short_code=updated_url.short_code,
-        short_url=f"{settings.base_url}/{updated_url.short_code}",
+        short_url=f"{settings.frontend_base_url}/{updated_url.short_code}",
         original_url=updated_url.original_url,
         expires_at=updated_url.expires_at,
         is_active=updated_url.is_active,

@@ -28,7 +28,7 @@ def _base_context() -> dict:
     """Common template variables injected into every email."""
     from datetime import datetime, timezone
     return {
-        "base_url": settings.base_url,
+        "base_url": settings.frontend_base_url,
         "year": datetime.now(timezone.utc).year,
     }
 

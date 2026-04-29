@@ -10,38 +10,37 @@ from src.kafka.client import create_topics, kafka_producer
 from src.auth.router import router as auth_router
 from src.urls.router import router as urls_router
 from src.health.router import router as health_router
+from src.logger import get_logger
+import src.auth.models 
 
-# Ensure all models are registered with SQLAlchemy metadata
-import src.auth.models  # noqa: F401
-import src.urls.models  # noqa: F401
-
+logger = get_logger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
-    print("Starting MiniLink URL Shortener...")
+    logger.info("Starting MiniLink URL Shortener...")
 
     # Initialize database tables
     await create_tables()
-    print("Database tables created")
+    logger.info("Database tables created")
 
     # Connect to Redis
     await redis_client.connect()
-    print("Connected to Redis")
+    logger.info("Connected to Redis")
 
     # Create Kafka topics
     await create_topics()
-    print("Kafka topics created")
+    logger.info("Kafka topics created")
 
     # Start Kafka producer
     await kafka_producer.start()
-    print("Kafka producer started")
+    logger.info("Kafka producer started")
 
     yield
 
     # Shutdown
-    print("Shutting down MiniLink...")
+    logger.info("Shutting down MiniLink...")
 
     # Stop Kafka producer
     await kafka_producer.stop()
@@ -52,7 +51,7 @@ async def lifespan(app: FastAPI):
     # Close Redis connection
     await redis_client.disconnect()
 
-    print("Shutdown complete")
+    logger.info("Shutdown complete")
 
 
 # Create FastAPI application

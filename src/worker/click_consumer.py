@@ -1,15 +1,33 @@
 import asyncio
+import logging
 from datetime import datetime
 from collections import defaultdict
 from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import insert, update
+from sqlalchemy.orm import configure_mappers
 
 from src.database import async_session_factory
 from src.kafka.client import KafkaConsumerClient
 from src.config import settings
+# Both model modules MUST be imported before configure_mappers() is called so
+# that SQLAlchemy can resolve all string-based relationships (e.g. "User" in
+# URL.user) eagerly at startup rather than lazily on the first DB operation.
+from src.auth.models import User  # noqa: F401 – registers User with the mapper
 from src.urls.models import ClickEvent, URL
+
+# Force SQLAlchemy to resolve all relationship() strings NOW, while all models
+# are guaranteed to be in the registry. Without this, the worker crashes on the
+# first DB flush with: 'User' failed to locate a name.
+configure_mappers()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("click_consumer")
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 CONSUMER_GROUP = "minilink-analytics-group"
@@ -55,7 +73,7 @@ class ClickConsumer:
         click_count_by_url: dict[UUID, int] = defaultdict(int)
         for event in batch:
             try:
-                print(f"[ClickConsumer] Received event: {event}")
+                logger.info(f"Received event: {event}")
                 url_id = UUID(event["url_id"])
                 rows.append({
                     "url_id": url_id,
@@ -66,7 +84,7 @@ class ClickConsumer:
                 })
                 click_count_by_url[url_id] += 1
             except Exception as e:
-                print(f"[ClickConsumer] Skipping malformed event: {e} | {event}")
+                logger.error(f"Skipping malformed event: {e} | {event}")
 
         if not rows:
             return
@@ -81,12 +99,12 @@ class ClickConsumer:
                         .values(click_count=URL.click_count + increment_by)
                     )
                 await db.commit()
-            print(
-                f"[ClickConsumer] Flushed {len(rows)} click events to DB and "
+            logger.info(
+                f"Flushed {len(rows)} click events to DB and "
                 f"updated {len(click_count_by_url)} URL counters"
             )
         except Exception as e:
-            print(f"[ClickConsumer] DB flush error: {e}")
+            logger.error(f"DB flush error: {e}")
 
     # ------------------------------------------------------------------
     async def _handle_message(self, data: dict):
@@ -107,9 +125,11 @@ class ClickConsumer:
     # ------------------------------------------------------------------
     async def start_consuming(self):
         """Start the consumer and the periodic flush task."""
-        print(f"[ClickConsumer] Starting — group={CONSUMER_GROUP}, "
-              f"topic={settings.kafka_click_topic}, "
-              f"batch_size={BATCH_SIZE}, flush_interval={FLUSH_INTERVAL}s")
+        logger.info(
+            f"[ClickConsumer] Starting — group={CONSUMER_GROUP}, "
+            f"topic={settings.kafka_click_topic}, "
+            f"batch_size={BATCH_SIZE}, flush_interval={FLUSH_INTERVAL}s"
+        )
 
         await self._client.start()
 
