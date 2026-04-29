@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
 from fastapi.concurrency import run_in_threadpool
 import jwt
 from datetime import datetime, timezone, timedelta
@@ -22,32 +22,64 @@ def _refresh_session_key(user_id: str, jti: str) -> str:
     return f"auth:refresh:{user_id}:{jti}"
 
 
-async def _issue_tokens(user_id: str, db: AsyncSession) -> TokenResponse:
-    """Create a new access/refresh token pair, persist them on the user, and return them."""
+async def _issue_tokens(user_id: str, response: Response) -> TokenResponse:
+    """Create a new access/refresh token pair, set HttpOnly cookies, and return them."""
     access_token, access_jti = create_access_token(user_id=user_id)
     refresh_token, refresh_jti = create_refresh_token(user_id=user_id)
+
+    # Persist refresh token session in Redis
     await redis_client.set(
         _refresh_session_key(user_id, refresh_jti),
         "1",
         expire=settings.refresh_token_expire_minutes * 60,
     )
 
+    # Set access token cookie
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=settings.access_token_expire_minutes * 60,
+        domain=settings.cookie_domain,
+    )
+
+    # Set refresh token cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=settings.refresh_token_expire_minutes * 60,
+        domain=settings.cookie_domain,
+    )
+
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Authenticate user and return JWT tokens in response body."""
+async def login(
+    payload: LoginRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """Authenticate user and return JWT tokens in response body + HttpOnly cookies."""
     user = await UserService.authenticate_user(db, payload.email, payload.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    return await _issue_tokens(user_id=str(user.id), db=db)
+    return await _issue_tokens(user_id=str(user.id), response=response)
 
 
 @router.post("/google", response_model=TokenResponse)
-async def google_login(payload: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
-    """Authenticate user with Google credential and return JWT tokens in response body."""
+async def google_login(
+    payload: GoogleAuthRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """Authenticate user with Google credential and return JWT tokens in response body + HttpOnly cookies."""
     if not settings.google_client_id:
         raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID is not configured")
 
@@ -67,15 +99,16 @@ async def google_login(payload: GoogleAuthRequest, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=401, detail="Google account email is not verified")
 
     user = await UserService.get_or_create_user_by_email(db, str(email).lower())
-    return await _issue_tokens(user_id=str(user.id), db=db)
+    return await _issue_tokens(user_id=str(user.id), response=response)
 
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     payload: RefreshTokenRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    """Rotate refresh token from request body: blacklist the old one and issue a new token pair."""
+    """Rotate refresh token: blacklist the old one and issue a new token pair in body + cookies."""
     try:
         token_payload = decode_token(payload.refresh_token)
     except jwt.ExpiredSignatureError as exc:
@@ -123,56 +156,68 @@ async def refresh_token(
         reason="refresh_rotation",
     )
 
-    return await _issue_tokens(user_id=user_id, db=db)
+    return await _issue_tokens(user_id=user_id, response=response)
 
 
 @router.post("/logout", response_model=MessageResponse)
 async def logout(
-    payload: RefreshTokenRequest,
+    response: Response,
+    payload: Optional[RefreshTokenRequest] = None,
+    refresh_token_cookie: Optional[str] = Cookie(default=None, alias="refresh_token"),
     current_user_id: UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """Logout: blacklist the current access token and the provided refresh token."""
-    # We rely on get_current_user_id which already validated the access token.
-    # Here we blacklist the refresh token supplied in the body.
-    try:
-        rt_payload = decode_token(payload.refresh_token)
-        refresh_jti = rt_payload.get("jti")
-        if refresh_jti:
-            exp_ts = rt_payload.get("exp")
-            expires_at = (
-                datetime.fromtimestamp(exp_ts, tz=timezone.utc)
-                if exp_ts
-                else datetime.now(timezone.utc) + timedelta(minutes=settings.refresh_token_expire_minutes)
-            )
-            # Remove from Redis
-            session_key = _refresh_session_key(str(current_user_id), str(refresh_jti))
-            await redis_client.delete(session_key)
-            # Blacklist
-            await BlacklistService.add_jti(
-                db,
-                jti=str(refresh_jti),
-                token_type="refresh",
-                expires_at=expires_at,
-                user_id=current_user_id,
-                reason="logout",
-            )
-    except jwt.PyJWTError:
-        pass  # Ignore invalid/expired refresh token during logout
+    """Logout: blacklist tokens and clear cookies."""
+    token_to_blacklist = payload.refresh_token if payload else refresh_token_cookie
+
+    if token_to_blacklist:
+        try:
+            rt_payload = decode_token(token_to_blacklist)
+            refresh_jti = rt_payload.get("jti")
+            if refresh_jti:
+                exp_ts = rt_payload.get("exp")
+                expires_at = (
+                    datetime.fromtimestamp(exp_ts, tz=timezone.utc)
+                    if exp_ts
+                    else datetime.now(timezone.utc) + timedelta(minutes=settings.refresh_token_expire_minutes)
+                )
+                # Remove from Redis
+                session_key = _refresh_session_key(str(current_user_id), str(refresh_jti))
+                await redis_client.delete(session_key)
+                # Blacklist in DB
+                await BlacklistService.add_jti(
+                    db,
+                    jti=str(refresh_jti),
+                    token_type="refresh",
+                    expires_at=expires_at,
+                    user_id=current_user_id,
+                    reason="logout",
+                )
+        except jwt.PyJWTError:
+            pass
+
+    # Clear cookies
+    response.delete_cookie(key="access_token", domain=settings.cookie_domain)
+    response.delete_cookie(key="refresh_token", domain=settings.cookie_domain)
 
     return MessageResponse(message="Logged out successfully")
 
 
 @router.post("/logout/all", response_model=MessageResponse)
 async def logout_all_sessions(
+    response: Response,
     current_user_id: UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """Revoke ALL refresh token sessions for the current user."""
+    """Revoke ALL refresh token sessions for the current user and clear cookies."""
     pattern = _refresh_session_key(str(current_user_id), "*")
     keys = await redis_client.keys(pattern)
     if keys:
         await redis_client.delete_many(*keys)
+
+    # Clear cookies
+    response.delete_cookie(key="access_token", domain=settings.cookie_domain)
+    response.delete_cookie(key="refresh_token", domain=settings.cookie_domain)
 
     return MessageResponse(message=f"Logged out from all sessions ({len(keys)} session(s) revoked)")
 

@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Override bằng env var COOKIE_SECURE=true|false nếu cần.
     cookie_secure: bool = os.getenv("COOKIE_SECURE", "false" if os.getenv("DEBUG", "false").lower() == "true" else "true").lower() == "true"
     cookie_samesite: str = os.getenv("COOKIE_SAMESITE", "lax")  # "lax" | "strict" | "none"
+    cookie_domain: Optional[str] = os.getenv("COOKIE_DOMAIN", None)
 
     # URL settings
     base_url: str = os.getenv("BASE_URL", "http://localhost:8000")
