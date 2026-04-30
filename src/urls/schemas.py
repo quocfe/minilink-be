@@ -9,14 +9,20 @@ class URLCreate(BaseModel):
     custom_code: Optional[str] = Field(None, description="Custom short code (optional)")
     expires_in_days: Optional[int] = Field(None, gt=0, le=365, description="Expiration in days (max 365)")
 
-    @validator('custom_code')
+    @validator('custom_code', pre=True)
     def validate_custom_code(cls, v):
+        # Treat empty string / whitespace-only as "not provided"
+        if v is not None and isinstance(v, str):
+            v = v.strip()
+            if v == '':
+                return None
         if v is not None:
             if len(v) < 3 or len(v) > 10:
-                raise ValueError('Custom code must be between 3 and 10 characters')
+                raise ValueError('Mã tùy chỉnh phải từ 3 đến 10 ký tự')
             if not v.replace('_', '').replace('-', '').isalnum():
-                raise ValueError('Custom code can only contain letters, numbers, hyphens, and underscores')
+                raise ValueError('Mã tùy chỉnh chỉ được chứa chữ cái, số, dấu gạch ngang và gạch dưới')
         return v
+
 
 
 class URLResponse(BaseModel):

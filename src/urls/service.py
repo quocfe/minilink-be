@@ -58,7 +58,7 @@ class URLService:
                 print(f"[IntegrityError] {e}")
                 await db.rollback()
                 if url_data.custom_code:
-                    raise ValueError("Custom code already exists")
+                    raise ValueError("Mã tùy chỉnh đã tồn tại, vui lòng chọn mã khác")
                 short_code = URLService.generate_short_code()
 
         raise Exception("Failed to generate unique short code")
