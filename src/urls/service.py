@@ -1,3 +1,4 @@
+from src.kafka.client import logger
 import string
 import random
 from datetime import datetime, timedelta
@@ -115,6 +116,8 @@ class URLService:
                     f"{updated_url.id}:{str(url_data.original_url)}",
                     expire=3600
                 )
+            else:
+                logger.warning("Redis cache is not enabled")
         return updated_url
 
     @staticmethod

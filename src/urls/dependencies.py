@@ -1,7 +1,11 @@
 from fastapi import Depends, HTTPException, Request
+
+from src.logger import get_logger
 from src.redis.client import redis_client
 from src.config import settings
 
+
+logger = get_logger("urls_dependencies")
 
 async def _rate_limit(request: Request, limit: int, window: int, prefix: str):
     """
@@ -11,6 +15,7 @@ async def _rate_limit(request: Request, limit: int, window: int, prefix: str):
     :param prefix: key prefix to namespace different limits
     """
     if not settings.rate_limit:
+        logger.info("Rate limiting is disabled. Skipping rate limit check.")
         return
 
     ip = request.client.host if request.client else "unknown"
