@@ -85,6 +85,7 @@ class URLService:
     async def get_original_url_from_cache(short_code: str) -> Optional[tuple[UUID, str]]:
         """Get URL ID and original URL from Redis cache."""
         if not settings.redis_cache:
+            logger.warning("Redis cache is not enabled")
             return None
             
         cached_data = await redis_client.get(f"url:{short_code}")

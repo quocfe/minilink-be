@@ -128,14 +128,14 @@ async def redirect_to_original(
     _: None = Depends(redirect_rate_limit)
 ):
     """Redirect to the original URL and record click analytics."""
-    logger.info(f"Attempting to resolve short code '{short_code}' from cache")
-
     cached_data = await URLService.get_original_url_from_cache(short_code)
 
     if cached_data:
+        logger.info(f"Redis HIT for short_code: {short_code}")
         url_id, original_url = cached_data
     else:
         # Redis MISS — query PostgreSQL
+        logger.info(f"Redis MISS for short_code: {short_code}")
         url = await URLService.get_url_by_short_code(db, short_code)
         if not url or not url.is_active:
             raise HTTPException(status_code=404, detail="URL not found")
