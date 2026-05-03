@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from passlib.context import CryptContext
 from src.auth.models import User, TokenBlacklist, VerificationCode, VerificationCodeStatus
 from src.auth.schemas import UserCreate
+from src.config import settings
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -166,9 +167,10 @@ class VerificationCodeService:
         5. Send email (imported lazily to avoid circular deps).
         """
         rl_key = _rate_limit_key(email, code_type)
-        if await redis_client.get(rl_key):
-            ttl = await redis_client.ttl(rl_key)
-            raise ValueError(f"Please wait {ttl} seconds before requesting a new code.")
+        if settings.rate_limit:
+            if await redis_client.get(rl_key):
+                ttl = await redis_client.ttl(rl_key)
+                raise ValueError(f"Please wait {ttl} seconds before requesting a new code.")
 
         # Invalidate old codes (mark as USED / superseded)
         await db.execute(
@@ -196,7 +198,8 @@ class VerificationCodeService:
         await db.commit()
 
         # Rate-limit key
-        await redis_client.set(rl_key, "1", expire=_RATE_LIMIT_TTL)
+        if settings.rate_limit:
+            await redis_client.set(rl_key, "1", expire=_RATE_LIMIT_TTL)
 
         # Send email
         from src.email.service import EmailService

@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, Request
 from src.redis.client import redis_client
+from src.config import settings
 
 
 async def _rate_limit(request: Request, limit: int, window: int, prefix: str):
@@ -9,6 +10,9 @@ async def _rate_limit(request: Request, limit: int, window: int, prefix: str):
     :param window: time window in seconds
     :param prefix: key prefix to namespace different limits
     """
+    if not settings.rate_limit:
+        return
+
     ip = request.client.host if request.client else "unknown"
     key = f"rate:{prefix}:{ip}"
 
@@ -27,11 +31,9 @@ async def _rate_limit(request: Request, limit: int, window: int, prefix: str):
 
 
 async def shorten_rate_limit(request: Request):
-    """10 requests/minute per IP for POST /shorten."""
     await _rate_limit(request, limit=100, window=60, prefix="shorten")
 
 
 async def redirect_rate_limit(request: Request):
-    """100 requests/minute per IP for GET /{short_code}."""
     await _rate_limit(request, limit=100, window=60, prefix="redirect")
 

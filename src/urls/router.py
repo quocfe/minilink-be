@@ -148,11 +148,8 @@ async def redirect_to_original(
         original_url = url.original_url
 
         # Populate Redis cache on miss
-        await redis_client.set(
-            f"url:{short_code}",
-            f"{url.id}:{url.original_url}",
-            expire=3600
-        )
+        if settings.redis_cache:
+            await redis_client.set(f"url:{short_code}", f"{url.id}:{url.original_url}", expire=3600)
 
     # Fire-and-forget: produce click event to Kafka without blocking the redirect
     logger.info(f"URL ID: {url_id}, Short Code: {short_code} | Producing click event to Kafka")

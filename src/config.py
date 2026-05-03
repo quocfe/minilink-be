@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     cookie_samesite: str = os.getenv("COOKIE_SAMESITE", "lax")  # "lax" | "strict" | "none"
     cookie_domain: Optional[str] = os.getenv("COOKIE_DOMAIN", None)
 
+    # Rate limit settings
+    rate_limit: bool = os.getenv("RATE_LIMIT", "true").lower() == "true"
+    redis_cache: bool = os.getenv("REDIS_CACHE", "true").lower() == "true"
+
 
     # URL settings
     base_url: str = os.getenv("BASE_URL", "http://localhost:8000")

@@ -47,11 +47,12 @@ class URLService:
                 await db.refresh(url)
 
                 # Cache in Redis with URL ID as key
-                await redis_client.set(
-                    f"url:{short_code}",
-                    f"{url.id}:{str(url_data.original_url)}",
-                    expire=3600
-                )
+                if settings.redis_cache:
+                    await redis_client.set(
+                        f"url:{short_code}",
+                        f"{url.id}:{str(url_data.original_url)}",
+                        expire=3600
+                    )
 
                 return url
             except IntegrityError as e:
@@ -82,6 +83,9 @@ class URLService:
     @staticmethod
     async def get_original_url_from_cache(short_code: str) -> Optional[tuple[UUID, str]]:
         """Get URL ID and original URL from Redis cache."""
+        if not settings.redis_cache:
+            return None
+            
         cached_data = await redis_client.get(f"url:{short_code}")
         if cached_data:
             try:
@@ -105,7 +109,7 @@ class URLService:
         if updated_url:
             await db.commit()
             # Update cache if original_url changed
-            if url_data.original_url:
+            if url_data.original_url and settings.redis_cache:
                 await redis_client.set(
                     f"url:{short_code}",
                     f"{updated_url.id}:{str(url_data.original_url)}",
@@ -126,7 +130,8 @@ class URLService:
         if deleted_url:
             await db.commit()
             # Remove from cache
-            await redis_client.delete(f"url:{short_code}")
+            if settings.redis_cache:
+                await redis_client.delete(f"url:{short_code}")
             return True
         return False
 
@@ -142,7 +147,8 @@ class URLService:
         new_count = result.scalar()
         if new_count is not None:
             await db.commit()
-            await redis_client.incr(f"clicks:{url_id}")
+            if settings.redis_cache:
+                await redis_client.incr(f"clicks:{url_id}")
         return new_count or 0
 
     @staticmethod
